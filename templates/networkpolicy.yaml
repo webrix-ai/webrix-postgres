@@ -1,0 +1,47 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "postgresql.fullname" . }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "postgresql.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "postgresql.primary.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    {{- if .Values.networkPolicy.egressRules.denyConnectionsToExternal }}
+    - Egress
+    {{- end }}
+  ingress:
+    {{- if .Values.networkPolicy.allowExternal }}
+    - ports:
+        - port: {{ .Values.primary.containerPorts.postgresql }}
+    {{- else if .Values.networkPolicy.ingressRules.primaryAccessOnlyFrom.enabled }}
+    - from:
+        {{- if .Values.networkPolicy.ingressRules.primaryAccessOnlyFrom.podSelector }}
+        - podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.ingressRules.primaryAccessOnlyFrom.podSelector | nindent 14 }}
+        {{- end }}
+        {{- if .Values.networkPolicy.ingressRules.primaryAccessOnlyFrom.namespaceSelector }}
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.ingressRules.primaryAccessOnlyFrom.namespaceSelector | nindent 14 }}
+        {{- end }}
+      ports:
+        - port: {{ .Values.primary.containerPorts.postgresql }}
+    {{- end }}
+  {{- if .Values.networkPolicy.egressRules.denyConnectionsToExternal }}
+  egress:
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to:
+        - namespaceSelector: {}
+  {{- end }}
+{{- end }}
