@@ -1,0 +1,385 @@
+## @section Global parameters
+global:
+  ## @param global.imageRegistry Global Docker image registry
+  imageRegistry: ""
+  ## @param global.imagePullSecrets Global Docker registry secret names as an array
+  ## e.g.
+  ## imagePullSecrets:
+  ##   - myRegistryKeySecretName
+  imagePullSecrets: []
+  ## @param global.defaultStorageClass Global default StorageClass for Persistent Volume(s)
+  defaultStorageClass: ""
+  ## @section Global Security parameters
+  security:
+    ## @param global.security.allowInsecureImages Allows skipping image verification
+    allowInsecureImages: true
+
+## @section Common parameters
+## @param nameOverride String to partially override the chart name
+nameOverride: ""
+## @param fullnameOverride String to fully override the chart fullname
+fullnameOverride: ""
+## @param clusterDomain Default Kubernetes cluster domain
+clusterDomain: cluster.local
+## @param commonLabels Labels to add to all deployed objects
+commonLabels: {}
+## @param commonAnnotations Annotations to add to all deployed objects
+commonAnnotations: {}
+
+## @section PostgreSQL Image parameters
+image:
+  ## @param image.registry PostgreSQL image registry
+  registry: docker.io
+  ## @param image.repository PostgreSQL image repository
+  repository: postgres
+  ## @param image.tag PostgreSQL image tag
+  tag: "17.4"
+  ## @param image.pullPolicy PostgreSQL image pull policy
+  pullPolicy: IfNotPresent
+  ## @param image.pullSecrets Specify image pull secrets
+  ## e.g.
+  ## pullSecrets:
+  ##   - myRegistryKeySecretName
+  pullSecrets: []
+
+## @section PostgreSQL Authentication parameters
+auth:
+  ## @param auth.enablePostgresUser Assign a password to the "postgres" admin user
+  enablePostgresUser: true
+  ## @param auth.postgresPassword Password for the "postgres" admin user
+  ## Ignored if auth.existingSecret is provided
+  postgresPassword: "postgres"
+  ## @param auth.username Name for a custom user to create
+  username: ""
+  ## @param auth.password Password for the custom user. Ignored if auth.existingSecret is provided
+  password: "password"
+  ## @param auth.database Name for a custom database to create
+  database: ""
+  ## @param auth.hostAuthMethod Set to "trust" to allow connections without a password (not recommended for production)
+  ## ref: https://hub.docker.com/_/postgres
+  hostAuthMethod: ""
+  ## @param auth.existingSecret Name of existing secret to use for PostgreSQL credentials
+  ## auth.postgresPassword and auth.password will be ignored if set
+  existingSecret: ""
+  ## @param auth.secretKeys.adminPasswordKey Key in existing secret for the admin password
+  ## @param auth.secretKeys.userPasswordKey Key in existing secret for the user password
+  secretKeys:
+    adminPasswordKey: postgres-password
+    userPasswordKey: password
+
+## @section PostgreSQL Compatibility parameters
+## @param postgresqlConfiguration PostgreSQL configuration as a map (alias for primary.configuration)
+postgresqlConfiguration: {}
+
+## @param architecture PostgreSQL architecture (standalone or replication)
+architecture: standalone
+
+## @param readReplicas.replicaCount Number of read replicas (not supported in this chart, but kept for compatibility)
+readReplicas:
+  replicaCount: 0
+
+## @param metrics.enabled Enable metrics (not supported in this chart, but kept for compatibility)
+metrics:
+  enabled: false
+
+## @section PostgreSQL Primary parameters
+primary:
+  ## @param primary.name Name of the primary database
+  name: primary
+
+  ## @param primary.configuration PostgreSQL primary configuration (postgresql.conf content)
+  ## ref: https://www.postgresql.org/docs/current/static/runtime-config.html
+  configuration: ""
+
+  ## @param primary.resourcesPreset PostgreSQL primary resources preset
+  resourcesPreset: "small"
+
+  ## @param primary.pgHbaConfiguration PostgreSQL pg_hba.conf configuration
+  ## ref: https://www.postgresql.org/docs/current/static/auth-pg-hba-conf.html
+  ## e.g.
+  ## pgHbaConfiguration: |-
+  ##   local all all trust
+  ##   host all all localhost trust
+  ##   host mydatabase myuser 192.168.0.0/24 md5
+  pgHbaConfiguration: ""
+
+  ## @param primary.existingConfigmap Name of an existing ConfigMap with PostgreSQL primary configuration
+  ## NOTE: primary.configuration and primary.pgHbaConfiguration will be ignored
+  existingConfigmap: ""
+
+  ## @param primary.extendedConfiguration Extended PostgreSQL configuration (appended to main configuration)
+  extendedConfiguration: ""
+
+  ## Initdb configuration
+  initdb:
+    ## @param primary.initdb.args PostgreSQL initdb extra arguments
+    args: ""
+    ## @param primary.initdb.scripts Dictionary of initdb scripts to run at first boot
+    ## e.g.
+    ## scripts:
+    ##   my_init_script.sh: |
+    ##     #!/bin/sh
+    ##     echo "Do something."
+    ##   init.sql: |
+    ##     CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+    scripts: {}
+    ## @param primary.initdb.scriptsConfigMap ConfigMap with scripts to run at first boot
+    ## NOTE: This will override primary.initdb.scripts
+    scriptsConfigMap: ""
+
+  ## @param primary.extraEnvVars Extra environment variables to add to PostgreSQL pods
+  ## e.g.
+  ## extraEnvVars:
+  ##   - name: FOO
+  ##     value: "bar"
+  extraEnvVars: []
+
+  ## @param primary.extraEnvVarsCM Name of existing ConfigMap containing extra env vars
+  extraEnvVarsCM: ""
+
+  ## @param primary.extraEnvVarsSecret Name of existing Secret containing extra env vars
+  extraEnvVarsSecret: ""
+
+  ## @param primary.command Override default container command
+  command: []
+  ## @param primary.args Override default container args
+  args: []
+
+  ## @section Primary Pod configuration
+  ## @param primary.podLabels Extra labels for pods
+  podLabels: {}
+  ## @param primary.podAnnotations Annotations for pods
+  podAnnotations: {}
+
+  ## @param primary.podAffinityPreset Pod affinity preset. Ignored if primary.affinity is set. Allowed: soft, hard
+  podAffinityPreset: ""
+  ## @param primary.podAntiAffinityPreset Pod anti-affinity preset. Ignored if primary.affinity is set. Allowed: soft, hard
+  podAntiAffinityPreset: soft
+  ## @param primary.nodeAffinityPreset.type Node affinity preset type. Ignored if primary.affinity is set. Allowed: soft, hard
+  ## @param primary.nodeAffinityPreset.key Node label key to match for affinity
+  ## @param primary.nodeAffinityPreset.values Node label values to match for affinity
+  nodeAffinityPreset:
+    type: ""
+    key: ""
+    values: []
+
+  ## @param primary.affinity Affinity for primary pods assignment
+  affinity: {}
+  ## @param primary.nodeSelector Node labels for primary pods assignment
+  nodeSelector: {}
+  ## @param primary.tolerations Tolerations for primary pods assignment
+  tolerations: []
+  ## @param primary.topologySpreadConstraints Topology Spread Constraints for pods
+  topologySpreadConstraints: []
+
+  ## @param primary.priorityClassName Priority Class to use for pods
+  priorityClassName: ""
+  ## @param primary.schedulerName Alternate scheduler for pods
+  schedulerName: ""
+
+  ## @section Primary Container security context
+  podSecurityContext:
+    ## @param primary.podSecurityContext.enabled Enable security context
+    enabled: true
+    ## @param primary.podSecurityContext.fsGroup Group ID for the pod
+    fsGroup: 999
+
+  containerSecurityContext:
+    ## @param primary.containerSecurityContext.enabled Enable container security context
+    enabled: true
+    ## @param primary.containerSecurityContext.runAsUser User ID for the container
+    runAsUser: 999
+    ## @param primary.containerSecurityContext.runAsNonRoot Set container's Security Context runAsNonRoot
+    runAsNonRoot: true
+    ## @param primary.containerSecurityContext.allowPrivilegeEscalation Set container's Security Context allowPrivilegeEscalation
+    allowPrivilegeEscalation: false
+    ## @param primary.containerSecurityContext.readOnlyRootFilesystem Set container's Security Context readOnlyRootFilesystem
+    readOnlyRootFilesystem: false
+    ## @param primary.containerSecurityContext.capabilities.drop List of capabilities to drop
+    capabilities:
+      drop:
+        - ALL
+
+  ## @section Primary Container resource requests and limits
+  resources:
+    ## @param primary.resources.requests.memory Memory request for PostgreSQL containers
+    ## @param primary.resources.requests.cpu CPU request for PostgreSQL containers
+    requests:
+      memory: 256Mi
+      cpu: 250m
+    ## @param primary.resources.limits.memory Memory limit for PostgreSQL containers
+    ## @param primary.resources.limits.cpu CPU limit for PostgreSQL containers
+    limits:
+      memory: 512Mi
+      cpu: "1"
+
+  ## @section Primary Container ports
+  containerPorts:
+    ## @param primary.containerPorts.postgresql PostgreSQL container port
+    postgresql: 5432
+
+  ## @section Primary Liveness and Readiness probes
+  livenessProbe:
+    ## @param primary.livenessProbe.enabled Enable liveness probe
+    enabled: true
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+    successThreshold: 1
+
+  readinessProbe:
+    ## @param primary.readinessProbe.enabled Enable readiness probe
+    enabled: true
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+    successThreshold: 1
+
+  startupProbe:
+    ## @param primary.startupProbe.enabled Enable startup probe
+    enabled: false
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 1
+    failureThreshold: 15
+    successThreshold: 1
+
+  ## @section Primary StatefulSet configuration
+  ## @param primary.updateStrategy.type Update strategy type. Can be RollingUpdate or OnDelete
+  updateStrategy:
+    type: RollingUpdate
+
+  ## @param primary.terminationGracePeriodSeconds Seconds the pod needs to terminate gracefully
+  terminationGracePeriodSeconds: ""
+
+  ## @section Primary Persistence configuration
+  persistence:
+    ## @param primary.persistence.enabled Enable data persistence using PVC
+    enabled: true
+    ## @param primary.persistence.storageClass PVC Storage Class for data volume
+    ## If set to "-", storageClassName: "", disabling dynamic provisioning
+    ## If undefined or empty, no storageClass is set (uses cluster default)
+    storageClass: ""
+    ## @param primary.persistence.accessModes PVC Access Mode for data volume
+    accessModes:
+      - ReadWriteOnce
+    ## @param primary.persistence.size PVC Storage Request for data volume
+    size: 8Gi
+    ## @param primary.persistence.annotations Annotations for the PVC
+    annotations: {}
+    ## @param primary.persistence.labels Labels for the PVC
+    labels: {}
+    ## @param primary.persistence.selector Selector to match an existing Persistent Volume
+    ## e.g.
+    ## selector:
+    ##   matchLabels:
+    ##     app: my-app
+    selector: {}
+    ## @param primary.persistence.existingClaim Name of an existing PVC to use
+    existingClaim: ""
+    ## @param primary.persistence.mountPath Mount path of the PostgreSQL data volume
+    mountPath: /var/lib/postgresql/data
+    ## @param primary.persistence.subPath Subdirectory of the data volume to mount
+    subPath: "pgdata"
+
+  ## @param primary.extraVolumes Extra volumes to add to the StatefulSet
+  extraVolumes: []
+  ## @param primary.extraVolumeMounts Extra volume mounts to add to the container
+  extraVolumeMounts: []
+
+  ## @param primary.sidecars Additional sidecar containers
+  sidecars: []
+  ## @param primary.initContainers Additional init containers
+  initContainers: []
+
+## @section PostgreSQL service parameters
+service:
+  ## @param service.type Kubernetes service type
+  type: ClusterIP
+  ports:
+    ## @param service.ports.postgresql PostgreSQL service port
+    postgresql: 5432
+  ## @param service.nodePorts.postgresql Node port for PostgreSQL (only when service.type is NodePort)
+  nodePorts:
+    postgresql: ""
+  ## @param service.clusterIP Cluster IP (use None for headless)
+  clusterIP: ""
+  ## @param service.loadBalancerIP LoadBalancer IP (if service.type == LoadBalancer)
+  loadBalancerIP: ""
+  ## @param service.loadBalancerSourceRanges LoadBalancer source ranges
+  loadBalancerSourceRanges: []
+  ## @param service.externalTrafficPolicy External traffic policy
+  externalTrafficPolicy: Cluster
+  ## @param service.annotations Annotations for the service
+  annotations: {}
+  ## @param service.sessionAffinity Session affinity
+  sessionAffinity: None
+  ## @param service.sessionAffinityConfig Session affinity config
+  sessionAffinityConfig: {}
+
+## @section Volume permissions init container parameters
+volumePermissions:
+  ## @param volumePermissions.enabled Enable init container to adapt volume permissions
+  enabled: false
+  image:
+    ## @param volumePermissions.image.registry Init container image registry
+    registry: docker.io
+    ## @param volumePermissions.image.repository Init container image repository
+    repository: busybox
+    ## @param volumePermissions.image.tag Init container image tag
+    tag: "1.37"
+    ## @param volumePermissions.image.pullPolicy Init container image pull policy
+    pullPolicy: IfNotPresent
+  ## @param volumePermissions.resources Resource requests/limits for the init container
+  resources:
+    requests:
+      cpu: 100m
+      memory: 64Mi
+
+## @section ServiceAccount parameters
+serviceAccount:
+  ## @param serviceAccount.create Enable creation of ServiceAccount for PostgreSQL pods
+  create: false
+  ## @param serviceAccount.name The name of the ServiceAccount to use
+  ## If not set and create is true, a name is generated using the fullname template
+  name: ""
+  ## @param serviceAccount.automountServiceAccountToken Allows auto mount of ServiceAccountToken
+  automountServiceAccountToken: false
+  ## @param serviceAccount.annotations Additional annotations for the ServiceAccount
+  annotations: {}
+
+## @section NetworkPolicy parameters
+networkPolicy:
+  ## @param networkPolicy.enabled Enable network policies
+  enabled: false
+  ## @param networkPolicy.allowExternal Allow connections from outside the namespace
+  allowExternal: true
+  ## @param networkPolicy.ingressRules.primaryAccessOnlyFrom.enabled Enable restricting access to primary to specific pods
+  ## @param networkPolicy.ingressRules.primaryAccessOnlyFrom.podSelector Pods selector to grant access to primary
+  ingressRules:
+    primaryAccessOnlyFrom:
+      enabled: false
+      podSelector: {}
+      namespaceSelector: {}
+  ## @param networkPolicy.egressRules.denyConnectionsToExternal Enable egress rules that deny connections to external services
+  egressRules:
+    denyConnectionsToExternal: false
+
+## @section TLS parameters
+tls:
+  ## @param tls.enabled Enable TLS on PostgreSQL connections
+  enabled: false
+  ## @param tls.autoGenerated Generate self-signed certificates (requires cert-manager)
+  autoGenerated: false
+  ## @param tls.preferServerCiphers Use server TLS cipher preferences
+  preferServerCiphers: true
+  ## @param tls.certificatesSecret Name of existing secret with TLS certificates
+  certificatesSecret: ""
+  ## @param tls.certFilename Certificate filename in the secret
+  certFilename: ""
+  ## @param tls.certKeyFilename Certificate key filename in the secret
+  certKeyFilename: ""
+  ## @param tls.certCAFilename CA Certificate filename in the secret
+  certCAFilename: ""

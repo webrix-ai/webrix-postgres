@@ -1,0 +1,122 @@
+name: Release Helm Chart
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'Chart.yaml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.12.0
+
+      - name: Get chart version
+        id: chart_version
+        run: |
+          chart_name=$(grep '^name:' Chart.yaml | awk '{print $2}')
+          chart_version=$(grep '^version:' Chart.yaml | awk '{print $2}')
+          
+          echo "📋 Chart: $chart_name"
+          echo "📦 Version: $chart_version"
+          
+          echo "name=$chart_name" >> $GITHUB_OUTPUT
+          echo "version=$chart_version" >> $GITHUB_OUTPUT
+
+      - name: Check if release already exists
+        id: check_release
+        run: |
+          if gh release view "v${{ steps.chart_version.outputs.version }}" &> /dev/null; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "ℹ️  Release v${{ steps.chart_version.outputs.version }} already exists"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "✅ Release v${{ steps.chart_version.outputs.version }} does not exist, will create"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Helm Lint
+        if: steps.check_release.outputs.exists == 'false'
+        run: helm lint .
+
+      - name: Package Helm chart
+        if: steps.check_release.outputs.exists == 'false'
+        run: |
+          echo "📦 Packaging chart..."
+          mkdir -p .cr-release-packages
+          helm package . --destination .cr-release-packages
+          echo "✅ Chart packaged"
+
+      - name: Create GitHub Release
+        if: steps.check_release.outputs.exists == 'false'
+        run: |
+          echo "🚀 Creating GitHub release..."
+          gh release create "v${{ steps.chart_version.outputs.version }}" \
+            .cr-release-packages/*.tgz \
+            --title "Release v${{ steps.chart_version.outputs.version }}" \
+            --notes "Helm chart release for version ${{ steps.chart_version.outputs.version }}"
+          echo "✅ Release created"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Checkout gh-pages branch
+        if: steps.check_release.outputs.exists == 'false'
+        run: |
+          if git fetch origin gh-pages; then
+            git checkout gh-pages
+          else
+            echo "ℹ️  gh-pages branch does not exist, creating it..."
+            git checkout --orphan gh-pages
+            git rm -rf .
+            touch index.yaml
+            git add index.yaml
+            git commit -m "Initialize gh-pages"
+          fi
+
+      - name: Update Helm repository index
+        if: steps.check_release.outputs.exists == 'false'
+        run: |
+          echo "📝 Updating repository index..."
+          mkdir -p .cr-release-packages
+          gh release download "v${{ steps.chart_version.outputs.version }}" \
+            --pattern "*.tgz" \
+            --dir .cr-release-packages
+          
+          mv .cr-release-packages/*.tgz .
+          helm repo index . --url https://github.com/${{ github.repository }}/releases/download/v${{ steps.chart_version.outputs.version }} --merge index.yaml
+          
+          rm -f *.tgz
+          rm -rf .cr-release-packages
+          echo "✅ Index updated"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Commit and push index
+        if: steps.check_release.outputs.exists == 'false'
+        run: |
+          git add index.yaml
+          git commit -m "Update index for v${{ steps.chart_version.outputs.version }}"
+          git push origin gh-pages
+          echo "✅ Index pushed to gh-pages"

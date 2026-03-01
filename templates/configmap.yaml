@@ -1,0 +1,51 @@
+{{- if or .Values.primary.configuration .Values.postgresqlConfiguration .Values.primary.pgHbaConfiguration .Values.primary.extendedConfiguration }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "postgresql.configmapName" . }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "postgresql.labels" . | nindent 4 }}
+  {{- with (include "postgresql.annotations" .) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+data:
+  {{- if or .Values.primary.configuration .Values.postgresqlConfiguration }}
+  postgresql.conf: |
+    {{- if .Values.primary.configuration }}
+    {{- .Values.primary.configuration | nindent 4 }}
+    {{- end }}
+    {{- range $key, $val := .Values.postgresqlConfiguration }}
+    {{ $key }} = {{ $val | quote }}
+    {{- end }}
+  {{- end }}
+  {{- if .Values.primary.pgHbaConfiguration }}
+  pg_hba.conf: |
+    {{- .Values.primary.pgHbaConfiguration | nindent 4 }}
+  {{- end }}
+  {{- if .Values.primary.extendedConfiguration }}
+  override.conf: |
+    {{- .Values.primary.extendedConfiguration | nindent 4 }}
+  {{- end }}
+{{- end }}
+
+{{- if and .Values.primary.initdb.scripts (not .Values.primary.initdb.scriptsConfigMap) }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "postgresql.fullname" . }}-init-scripts
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "postgresql.labels" . | nindent 4 }}
+  {{- with (include "postgresql.annotations" .) }}
+  annotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+data:
+  {{- range $key, $val := .Values.primary.initdb.scripts }}
+  {{ $key }}: |
+    {{- $val | nindent 4 }}
+  {{- end }}
+{{- end }}
