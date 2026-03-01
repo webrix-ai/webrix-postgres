@@ -119,8 +119,12 @@ jobs:
           # Move the chart to root for indexing (so URL doesn't include .cr-release-packages/)
           mv .cr-release-packages/*.tgz .
 
-          # Generate/update index.yaml
-          helm repo index . --url https://github.com/${{ github.repository }}/releases/download/v${{ steps.chart_version.outputs.version }} --merge index.yaml
+          # Generate/update index.yaml (only use --merge if index.yaml is non-empty)
+          if [ -s index.yaml ]; then
+            helm repo index . --url https://github.com/${{ github.repository }}/releases/download/v${{ steps.chart_version.outputs.version }} --merge index.yaml
+          else
+            helm repo index . --url https://github.com/${{ github.repository }}/releases/download/v${{ steps.chart_version.outputs.version }}
+          fi
 
           # Clean up the .tgz file (we don't need it in gh-pages, it's in the GitHub release)
           rm -f *.tgz
