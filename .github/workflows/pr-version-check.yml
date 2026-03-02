@@ -1,0 +1,148 @@
+name: PR Version Check
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  check_version_bump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Auth GH CLI
+        run: gh auth setup-git
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check Chart.yaml version bump
+        id: version_check
+        run: |
+          set -euo pipefail
+
+          # Get current version from PR's Chart.yaml
+          if [ ! -f "Chart.yaml" ]; then
+            echo "❌ Chart.yaml not found"
+            exit 1
+          fi
+
+          pr_version=$(grep '^version:' Chart.yaml | awk '{print $2}')
+          echo "📄 PR Chart.yaml version: $pr_version"
+
+          # Get latest release/tag version
+          latest_tag=$(gh api repos/${{ github.repository }}/tags --jq '.[0].name' 2>/dev/null || echo "")
+
+          if [ -z "$latest_tag" ]; then
+            echo "ℹ️  No existing releases found"
+            echo "✅ This will be the first release with version: $pr_version"
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "message=✅ First release - version $pr_version will be used" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Remove 'v' prefix and chart name prefix if present
+          # Handles both "v0.1.32" and "webrix-postgres-0.1.32" formats
+          latest_version=$(echo "$latest_tag" | sed -E 's/^v//;s/^[a-zA-Z-]+-//')
+          echo "📦 Latest release version: $latest_version"
+
+          # Compare versions
+          if [ "$pr_version" = "$latest_version" ]; then
+            echo "❌ Version not bumped!"
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "message=❌ Chart.yaml version ($pr_version) must be bumped from latest release ($latest_version)" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          # Validate version is greater than latest
+          IFS='.' read -r pr_major pr_minor pr_patch <<< "$pr_version"
+          IFS='.' read -r latest_major latest_minor latest_patch <<< "$latest_version"
+
+          # Remove any non-numeric suffixes (e.g., -alpha, -beta)
+          pr_major=${pr_major%%[^0-9]*}
+          pr_minor=${pr_minor%%[^0-9]*}
+          pr_patch=${pr_patch%%[^0-9]*}
+          latest_major=${latest_major%%[^0-9]*}
+          latest_minor=${latest_minor%%[^0-9]*}
+          latest_patch=${latest_patch%%[^0-9]*}
+
+          version_greater=false
+
+          if [ "$pr_major" -gt "$latest_major" ]; then
+            version_greater=true
+            bump_type="major"
+          elif [ "$pr_major" -eq "$latest_major" ] && [ "$pr_minor" -gt "$latest_minor" ]; then
+            version_greater=true
+            bump_type="minor"
+          elif [ "$pr_major" -eq "$latest_major" ] && [ "$pr_minor" -eq "$latest_minor" ] && [ "$pr_patch" -gt "$latest_patch" ]; then
+            version_greater=true
+            bump_type="patch"
+          fi
+
+          if [ "$version_greater" = false ]; then
+            echo "❌ Version is not greater than latest release!"
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "message=❌ Chart.yaml version ($pr_version) must be greater than latest release ($latest_version)" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          echo "✅ Version bump detected: $latest_version → $pr_version ($bump_type)"
+          echo "status=success" >> $GITHUB_OUTPUT
+          echo "message=✅ Version bumped: $latest_version → $pr_version ($bump_type)" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Comment on PR
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const status = '${{ steps.version_check.outputs.status }}';
+            const message = '${{ steps.version_check.outputs.message }}';
+
+            const commentBody = status === 'success'
+              ? `## ✅ Version Check Passed\n\n${message}\n\nThis PR can be merged.`
+              : `## ❌ Version Check Failed\n\n${message}\n\n### Required Action\n\nPlease update the \`version\` field in \`Chart.yaml\` to be greater than the latest release.\n\n**Tip**: Use semantic versioning:\n- **Patch** (x.y.Z): Bug fixes, small changes\n- **Minor** (x.Y.0): New features, backward compatible\n- **Major** (X.0.0): Breaking changes`;
+
+            // Find existing bot comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes('Version Check')
+            );
+
+            // Update or create comment
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: commentBody
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: commentBody
+              });
+            }
+
+      - name: Set check status
+        if: steps.version_check.outputs.status == 'failure'
+        run: |
+          echo "::error::Chart.yaml version must be bumped before merging"
+          exit 1

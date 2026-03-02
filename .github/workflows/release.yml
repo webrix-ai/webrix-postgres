@@ -37,10 +37,10 @@ jobs:
         run: |
           chart_name=$(grep '^name:' Chart.yaml | awk '{print $2}')
           chart_version=$(grep '^version:' Chart.yaml | awk '{print $2}')
-          
+
           echo "📋 Chart: $chart_name"
           echo "📦 Version: $chart_version"
-          
+
           echo "name=$chart_name" >> $GITHUB_OUTPUT
           echo "version=$chart_version" >> $GITHUB_OUTPUT
 
@@ -57,9 +57,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Helm Lint
+      - name: Build chart dependencies
         if: steps.check_release.outputs.exists == 'false'
-        run: helm lint .
+        run: |
+          echo "🔨 Building chart dependencies..."
+          if [ -f "Chart.lock" ]; then
+            helm dependency build
+            echo "✅ Dependencies built"
+          else
+            echo "ℹ️  No dependencies to build"
+          fi
 
       - name: Package Helm chart
         if: steps.check_release.outputs.exists == 'false'
@@ -68,6 +75,7 @@ jobs:
           mkdir -p .cr-release-packages
           helm package . --destination .cr-release-packages
           echo "✅ Chart packaged"
+          ls -lh .cr-release-packages/
 
       - name: Create GitHub Release
         if: steps.check_release.outputs.exists == 'false'
@@ -94,21 +102,34 @@ jobs:
             git add index.yaml
             git commit -m "Initialize gh-pages"
           fi
+          # Clean up the package directory from the previous branch
+          rm -rf .cr-release-packages
 
       - name: Update Helm repository index
         if: steps.check_release.outputs.exists == 'false'
         run: |
           echo "📝 Updating repository index..."
+
+          # Download the packaged chart from the release
           mkdir -p .cr-release-packages
           gh release download "v${{ steps.chart_version.outputs.version }}" \
             --pattern "*.tgz" \
             --dir .cr-release-packages
-          
+
+          # Move the chart to root for indexing (so URL doesn't include .cr-release-packages/)
           mv .cr-release-packages/*.tgz .
-          helm repo index . --url https://github.com/${{ github.repository }}/releases/download/v${{ steps.chart_version.outputs.version }} --merge index.yaml
-          
+
+          # Generate/update index.yaml (only use --merge if index.yaml is non-empty)
+          if [ -s index.yaml ]; then
+            helm repo index . --url https://github.com/${{ github.repository }}/releases/download/v${{ steps.chart_version.outputs.version }} --merge index.yaml
+          else
+            helm repo index . --url https://github.com/${{ github.repository }}/releases/download/v${{ steps.chart_version.outputs.version }}
+          fi
+
+          # Clean up the .tgz file (we don't need it in gh-pages, it's in the GitHub release)
           rm -f *.tgz
           rm -rf .cr-release-packages
+
           echo "✅ Index updated"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -120,3 +141,24 @@ jobs:
           git commit -m "Update index for v${{ steps.chart_version.outputs.version }}"
           git push origin gh-pages
           echo "✅ Index pushed to gh-pages"
+
+      - name: Release summary
+        run: |
+          if [ "${{ steps.check_release.outputs.exists }}" == "true" ]; then
+            echo "## ℹ️  Release Already Exists" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Version **v${{ steps.chart_version.outputs.version }}** was already released." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## 🎉 Helm Chart Released!" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Chart:** ${{ steps.chart_version.outputs.name }}" >> $GITHUB_STEP_SUMMARY
+            echo "**Version:** v${{ steps.chart_version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+            echo "**Repository:** https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 📦 Installation" >> $GITHUB_STEP_SUMMARY
+            echo '```bash' >> $GITHUB_STEP_SUMMARY
+            echo "helm repo add ${{ steps.chart_version.outputs.name }} https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}" >> $GITHUB_STEP_SUMMARY
+            echo "helm repo update" >> $GITHUB_STEP_SUMMARY
+            echo "helm install my-release ${{ steps.chart_version.outputs.name }}/${{ steps.chart_version.outputs.name }}" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
