@@ -30,15 +30,6 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
     spec:
-      {{- if or .Values.global.imagePullSecrets .Values.image.pullSecrets }}
-      imagePullSecrets:
-        {{- range .Values.global.imagePullSecrets }}
-        - name: {{ . }}
-        {{- end }}
-        {{- range .Values.image.pullSecrets }}
-        - name: {{ . }}
-        {{- end }}
-      {{- end }}
       serviceAccountName: {{ include "postgresql.serviceAccountName" . }}
       {{- if .Values.primary.podSecurityContext.enabled }}
       securityContext:
