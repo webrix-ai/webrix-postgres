@@ -3,6 +3,25 @@ entries:
   webrix-postgres:
   - apiVersion: v2
     appVersion: "17.4"
+    created: "2026-03-04T09:28:11.847333301Z"
+    description: PostgreSQL Helm chart using the official Docker image
+    digest: 08afb1584edab8fa4e393a6bab78e5d649839c9cdee0425d099e42b1d9d5b3d2
+    home: https://www.postgresql.org/
+    keywords:
+    - postgresql
+    - postgres
+    - database
+    maintainers:
+    - name: Webrix
+    name: webrix-postgres
+    sources:
+    - https://github.com/docker-library/postgres
+    type: application
+    urls:
+    - https://github.com/webrix-ai/webrix-postgres/releases/download/v1.0.1/webrix-postgres-1.0.1.tgz
+    version: 1.0.1
+  - apiVersion: v2
+    appVersion: "17.4"
     created: "2026-03-02T06:52:50.362982222Z"
     description: PostgreSQL Helm chart using the official Docker image
     digest: 6586e3691648b956f8a212df7f0088efbb91149b8e3e92d75b2e23da7d4d5f46
@@ -39,4 +58,4 @@ entries:
     urls:
     - https://github.com/webrix-ai/webrix-postgres/releases/download/v0.1.0/webrix-postgres-0.1.0.tgz
     version: 0.1.0
-generated: "2026-03-02T06:52:50.358837934Z"
+generated: "2026-03-04T09:28:11.844973354Z"
